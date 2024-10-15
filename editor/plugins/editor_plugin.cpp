@@ -644,6 +644,8 @@ void EditorPlugin::_bind_methods() {
 	GDVIRTUAL_BIND(_get_plugin_name);
 	GDVIRTUAL_BIND(_get_plugin_icon);
 	GDVIRTUAL_BIND(_has_main_screen);
+	GDVIRTUAL_BIND(_is_update_available);
+	GDVIRTUAL_BIND(_install_update);
 	GDVIRTUAL_BIND(_make_visible, "visible");
 	GDVIRTUAL_BIND(_edit, "object");
 	GDVIRTUAL_BIND(_handles, "object");

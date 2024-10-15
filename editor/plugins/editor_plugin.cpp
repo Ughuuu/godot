@@ -333,6 +333,18 @@ bool EditorPlugin::has_main_screen() const {
 	return success;
 }
 
+bool EditorPlugin::is_update_available() const {
+	bool success = false;
+	GDVIRTUAL_CALL(_is_update_available, success);
+	return success;
+}
+
+bool EditorPlugin::install_update() const {
+	bool success = false;
+	GDVIRTUAL_CALL(_install_update, success);
+	return success;
+}
+
 void EditorPlugin::make_visible(bool p_visible) {
 	GDVIRTUAL_CALL(_make_visible, p_visible);
 }

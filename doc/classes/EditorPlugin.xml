@@ -358,6 +358,18 @@
 				[/codeblock]
 			</description>
 		</method>
+		<method name="_is_update_available" qualifiers="virtual const">
+			<return type="bool" />
+			<description>
+				Override this method in your plugin to provide the functionality of checking whether a newer version of the plugin is available.
+			</description>
+		</method>
+		<method name="_install_update" qualifiers="virtual const">
+			<return type="bool" />
+			<description>
+				Override this method in your plugin to provide the functionality of triggering the update process for the plugin.
+			</description>
+		</method>
 		<method name="_make_visible" qualifiers="virtual">
 			<return type="void" />
 			<param index="0" name="visible" type="bool" />

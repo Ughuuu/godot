@@ -11,12 +11,10 @@ Error GDExtensionStaticLibraryLoader::open_library(const String &p_path) {
 }
 
 Error GDExtensionStaticLibraryLoader::initialize(GDExtensionInterfaceGetProcAddress p_get_proc_address, const Ref<GDExtension> &p_extension, GDExtensionInitialization *r_initialization) {
-	for (const KeyValue<String, String> &icon : class_icon_paths) {
-		p_extension->class_icon_paths[icon.key] = icon.value;
-	}
-
+	
 	GDExtensionInitializationFunction initialization_function = (GDExtensionInitializationFunction)entry_funcptr;
-
+	if (initialization_function == nullptr) {
+	}
 	GDExtensionBool ret = initialization_function(p_get_proc_address, p_extension.ptr(), r_initialization);
 
 	if (ret) {

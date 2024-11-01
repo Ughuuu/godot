@@ -6,7 +6,10 @@ Import("env_modules")
 
 env_gdextension = env_modules.Clone()
 
-env_gdextension.Append(LIBPATH=["addons/bin"])
-env_gdextension.Append(LIBS=["libgodot_riscv.macos.template_debug.universal.framework"])
+env_gdextension.Append(LIBPATH=["addons/godot-rapier2d/bin/libgodot_rapier.macos.framework"])
+env_gdextension.Append(LIBPATH=["addons/godot-sandbox/bin/libgodot_riscv.macos.template_debug.universal.framework"])
+env_gdextension.Append(LIBS=["libgodot_rapier.macos.a"])
+env_gdextension.Append(LIBS=["libgodot_riscv.macos.template_debug.universal"])
+
 
 env_gdextension.add_source_files(env.modules_sources, "*.cpp")

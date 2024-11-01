@@ -1,0 +1,12 @@
+#!/usr/bin/env python
+from misc.utility.scons_hints import *
+
+Import("env")
+Import("env_modules")
+
+env_gdextension = env_modules.Clone()
+
+env_gdextension.Append(LIBPATH=["addons/bin"])
+env_gdextension.Append(LIBS=["libgodot_riscv.macos.template_debug.universal.framework"])
+
+env_gdextension.add_source_files(env.modules_sources, "*.cpp")

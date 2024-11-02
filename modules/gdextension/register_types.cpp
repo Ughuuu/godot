@@ -12,25 +12,16 @@ extern "C" {
         GDExtensionClassLibraryPtr p_library,
         GDExtensionInitialization *r_initialization
     );
-    void riscv_test();
-    //GDExtensionBool gdext_rust_init(
-    //    GDExtensionInterfaceGetProcAddress p_get_proc_address,
-    //    GDExtensionClassLibraryPtr p_library,
-    //    GDExtensionInitialization *r_initialization
-    //);
 }
 
 
 void initialize_gdextension_module(ModuleInitializationLevel p_level) {
-	if (p_level != MODULE_INITIALIZATION_LEVEL_EDITOR) {
+	if (p_level != MODULE_INITIALIZATION_LEVEL_SERVERS) {
 		return;
 	}
 
 	Ref<GDExtensionStaticLibraryLoader> loader;
 	loader.instantiate();
-	ERR_PRINT("1");
-	//riscv_test();
-	ERR_PRINT("2");
 	loader->set_entry_funcptr((void*)&riscv_library_init);
 	GDExtensionManager::get_singleton()->load_extension_with_loader("sandbox", loader);
 }

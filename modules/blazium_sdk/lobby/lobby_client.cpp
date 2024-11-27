@@ -32,6 +32,7 @@
 #include "scene/main/node.h"
 LobbyClient::LobbyClient() {
 	_socket = Ref<WebSocketPeer>(WebSocketPeer::create());
+	set_process_internal(false);
 }
 
 LobbyClient::~LobbyClient() {
@@ -59,6 +60,7 @@ void LobbyClient::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("lobby_data_to", "data", "target_peer"), &LobbyClient::lobby_data_to);
 
 	// Register signals
+	ADD_SIGNAL(MethodInfo("disconnected_from_lobby"));
 	ADD_SIGNAL(MethodInfo("peer_named", PropertyInfo(Variant::STRING, "peer"), PropertyInfo(Variant::STRING, "name")));
 	ADD_SIGNAL(MethodInfo("received_data", PropertyInfo(Variant::STRING, "data")));
 	ADD_SIGNAL(MethodInfo("received_data_to", PropertyInfo(Variant::STRING, "data")));
@@ -79,6 +81,8 @@ bool LobbyClient::connect_to_lobby(const String &game_id) {
 	String url = lobby_url + "?gameID=" + game_id;
 	Error err = _socket->connect_to_url(url);
 	if (err != OK) {
+		set_process_internal(false);
+		emit_signal("disconnected_from_lobby");
 		emit_signal("append_log", "error", "Unable to connect to lobby server at: " + url);
 		return false;
 	}
@@ -344,6 +348,8 @@ void LobbyClient::_notification(int p_what) {
 				}
 			} else if (state == WebSocketPeer::STATE_CLOSED) {
 				emit_signal("append_log", "error", "WebSocket closed unexpectedly.");
+				emit_signal("disconnected_from_lobby");
+				set_process_internal(false);
 			}
 		} break;
 	}

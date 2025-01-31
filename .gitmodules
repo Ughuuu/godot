@@ -8,3 +8,6 @@
 [submodule "modules/sqlite"]
 	path = modules/sqlite
 	url = https://github.com/blazium-engine/sqlite-module
+[submodule "modules/sandbox"]
+	path = modules/sandbox
+	url = https://github.com/blazium-engine/godot-sandbox

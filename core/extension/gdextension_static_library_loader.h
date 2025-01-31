@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  gdextension_static_library_loader.cpp                                 */
+/*  gdextension_static_library_loader.h                                   */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,43 +28,34 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#include "gdextension_static_library_loader.h"
+#ifndef GDEXTENSION_STATIC_LIBRARY_LOADER_H
+#define GDEXTENSION_STATIC_LIBRARY_LOADER_H
 
-#include "core/config/project_settings.h"
-#include "core/extension/gdextension.h"
-#include "core/io/dir_access.h"
-#include "core/version.h"
+#include <functional>
 
-Error GDExtensionStaticLibraryLoader::open_library(const String &p_path) {
-	library_path = p_path;
-	return OK;
-}
+#include "core/extension/gdextension_loader.h"
+#include "core/io/config_file.h"
+#include "core/os/shared_object.h"
 
-Error GDExtensionStaticLibraryLoader::initialize(GDExtensionInterfaceGetProcAddress p_get_proc_address, const Ref<GDExtension> &p_extension, GDExtensionInitialization *r_initialization) {
-	GDExtensionInitializationFunction initialization_function = (GDExtensionInitializationFunction)entry_funcptr;
-	if (initialization_function == nullptr) {
-	}
-	GDExtensionBool ret = initialization_function(p_get_proc_address, p_extension.ptr(), r_initialization);
+class GDExtensionStaticLibraryLoader : public GDExtensionLoader {
+	friend class GDExtensionManager;
+	friend class GDExtension;
 
-	if (ret) {
-		return OK;
-	} else {
-		ERR_PRINT("GDExtension initialization function '" + library_path + "' returned an error.");
-		return FAILED;
-	}
-}
+private:
+	String resource_path;
+	void *entry_funcptr = nullptr;
+	String library_path;
+	Vector<SharedObject> library_dependencies;
 
-void GDExtensionStaticLibraryLoader::close_library() {
-}
+	HashMap<String, String> class_icon_paths;
 
-bool GDExtensionStaticLibraryLoader::is_library_open() const {
-	return true;
-}
+public:
+	void set_entry_funcptr(void *p_entry_funcptr) { entry_funcptr = p_entry_funcptr; }
+	virtual Error open_library(const String &p_path) override;
+	virtual Error initialize(GDExtensionInterfaceGetProcAddress p_get_proc_address, const Ref<GDExtension> &p_extension, GDExtensionInitialization *r_initialization) override;
+	virtual void close_library() override;
+	virtual bool is_library_open() const override;
+	virtual bool has_library_changed() const override;
+};
 
-bool GDExtensionStaticLibraryLoader::has_library_changed() const {
-	return false;
-}
-
-bool GDExtensionStaticLibraryLoader::library_exists() const {
-	return true;
-}
+#endif // GDEXTENSION_STATIC_LIBRARY_LOADER_H

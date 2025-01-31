@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  gdextension_static_library_loader.h                                   */
+/*  gdextension_static_library_loader.cpp                                 */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,35 +28,39 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#ifndef GDEXTENSION_STATIC_LIBRARY_LOADER_H
-#define GDEXTENSION_STATIC_LIBRARY_LOADER_H
+#include "gdextension_static_library_loader.h"
 
-#include <functional>
+#include "core/config/project_settings.h"
+#include "core/extension/gdextension.h"
+#include "core/io/dir_access.h"
+#include "core/version.h"
 
-#include "core/extension/gdextension_loader.h"
-#include "core/io/config_file.h"
-#include "core/os/shared_object.h"
+Error GDExtensionStaticLibraryLoader::open_library(const String &p_path) {
+	library_path = p_path;
+	return OK;
+}
 
-class GDExtensionStaticLibraryLoader : public GDExtensionLoader {
-	friend class GDExtensionManager;
-	friend class GDExtension;
+Error GDExtensionStaticLibraryLoader::initialize(GDExtensionInterfaceGetProcAddress p_get_proc_address, const Ref<GDExtension> &p_extension, GDExtensionInitialization *r_initialization) {
+	GDExtensionInitializationFunction initialization_function = (GDExtensionInitializationFunction)entry_funcptr;
+	if (initialization_function == nullptr) {
+	}
+	GDExtensionBool ret = initialization_function(p_get_proc_address, p_extension.ptr(), r_initialization);
 
-private:
-	String resource_path;
-	void *entry_funcptr = nullptr;
-	String library_path;
-	Vector<SharedObject> library_dependencies;
+	if (ret) {
+		return OK;
+	} else {
+		ERR_PRINT("GDExtension initialization function '" + library_path + "' returned an error.");
+		return FAILED;
+	}
+}
 
-	HashMap<String, String> class_icon_paths;
+void GDExtensionStaticLibraryLoader::close_library() {
+}
 
-public:
-	void set_entry_funcptr(void *p_entry_funcptr) { entry_funcptr = p_entry_funcptr; }
-	virtual Error open_library(const String &p_path) override;
-	virtual Error initialize(GDExtensionInterfaceGetProcAddress p_get_proc_address, const Ref<GDExtension> &p_extension, GDExtensionInitialization *r_initialization) override;
-	virtual void close_library() override;
-	virtual bool is_library_open() const override;
-	virtual bool has_library_changed() const override;
-	virtual bool library_exists() const override;
-};
+bool GDExtensionStaticLibraryLoader::is_library_open() const {
+	return true;
+}
 
-#endif // GDEXTENSION_STATIC_LIBRARY_LOADER_H
+bool GDExtensionStaticLibraryLoader::has_library_changed() const {
+	return false;
+}

@@ -29,9 +29,9 @@
 /**************************************************************************/
 
 #include "register_types.h"
-#include "./gdextension_static_library_loader.h"
 #include "core/extension/gdextension_interface.h"
 #include "core/extension/gdextension_manager.h"
+#include "core/extension/gdextension_static_library_loader.h"
 #include "core/object/object.h"
 #include "core/object/ref_counted.h"
 

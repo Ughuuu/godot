@@ -64,7 +64,3 @@ bool GDExtensionStaticLibraryLoader::is_library_open() const {
 bool GDExtensionStaticLibraryLoader::has_library_changed() const {
 	return false;
 }
-
-bool GDExtensionStaticLibraryLoader::library_exists() const {
-	return true;
-}

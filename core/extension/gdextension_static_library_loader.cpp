@@ -43,6 +43,8 @@ Error GDExtensionStaticLibraryLoader::open_library(const String &p_path) {
 Error GDExtensionStaticLibraryLoader::initialize(GDExtensionInterfaceGetProcAddress p_get_proc_address, const Ref<GDExtension> &p_extension, GDExtensionInitialization *r_initialization) {
 	GDExtensionInitializationFunction initialization_function = (GDExtensionInitializationFunction)entry_funcptr;
 	if (initialization_function == nullptr) {
+		ERR_PRINT("GDExtension initialization function '" + library_path + "' not found.");
+		return FAILED;
 	}
 	GDExtensionBool ret = initialization_function(p_get_proc_address, p_extension.ptr(), r_initialization);
 

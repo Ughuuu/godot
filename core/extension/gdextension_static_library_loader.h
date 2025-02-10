@@ -56,6 +56,7 @@ public:
 	virtual void close_library() override;
 	virtual bool is_library_open() const override;
 	virtual bool has_library_changed() const override;
+	virtual bool library_exists() const override;
 };
 
 #endif // GDEXTENSION_STATIC_LIBRARY_LOADER_H

@@ -505,6 +505,7 @@ void Steam::steamShutdown() {
 		auto callbacks = callable_mp(Steam::singleton, &Steam::run_callbacks);
 		SceneTree::get_singleton()->disconnect("process_frame", callbacks);
 	}
+	is_init_success = false;
 }
 
 ///// APPS

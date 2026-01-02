@@ -788,6 +788,11 @@ void OS_MacOS::run() {
 }
 
 OS_MacOS::OS_MacOS() {
+	const bool embedded_headless = ([]() {
+		const char *v = getenv("LIBGODOT_EMBEDDED_HEADLESS");
+		return v && v[0] == '1' && v[1] == '\0';
+	})();
+
 	if (is_sandboxed()) {
 		// Load security-scoped bookmarks, request access, remove stale or invalid bookmarks.
 		NSArray *bookmarks = [[NSUserDefaults standardUserDefaults] arrayForKey:@"sec_bookmarks"];
@@ -815,49 +820,56 @@ OS_MacOS::OS_MacOS() {
 	AudioDriverManager::add_driver(&audio_driver);
 #endif
 
-	DisplayServerMacOS::register_macos_driver();
+	if (!embedded_headless) {
+		DisplayServerMacOS::register_macos_driver();
 
-	// Implicitly create shared NSApplication instance.
-	[GodotApplication sharedApplication];
+		// Implicitly create shared NSApplication instance.
+		[GodotApplication sharedApplication];
 
-	// In case we are unbundled, make us a proper UI application.
-	[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+		// In case we are unbundled, make us a proper UI application.
+		[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
 
-	// Menu bar setup must go between sharedApplication above and
-	// finishLaunching below, in order to properly emulate the behavior
-	// of NSApplicationMain.
+		// Menu bar setup must go between sharedApplication above and
+		// finishLaunching below, in order to properly emulate the behavior
+		// of NSApplicationMain.
 
-	NSMenu *main_menu = [[NSMenu alloc] initWithTitle:@""];
-	[NSApp setMainMenu:main_menu];
-	[NSApp finishLaunching];
+		NSMenu *main_menu = [[NSMenu alloc] initWithTitle:@""];
+		[NSApp setMainMenu:main_menu];
+		[NSApp finishLaunching];
 
-	id delegate = [[GodotApplicationDelegate alloc] init];
-	ERR_FAIL_NULL(delegate);
-	[NSApp setDelegate:delegate];
-	[NSApp registerUserInterfaceItemSearchHandler:delegate];
+		id delegate = [[GodotApplicationDelegate alloc] init];
+		ERR_FAIL_NULL(delegate);
+		[NSApp setDelegate:delegate];
+		[NSApp registerUserInterfaceItemSearchHandler:delegate];
 
-	pre_wait_observer = CFRunLoopObserverCreate(kCFAllocatorDefault, kCFRunLoopBeforeWaiting, true, 0, &pre_wait_observer_cb, nullptr);
-	CFRunLoopAddObserver(CFRunLoopGetCurrent(), pre_wait_observer, kCFRunLoopCommonModes);
+		pre_wait_observer = CFRunLoopObserverCreate(kCFAllocatorDefault, kCFRunLoopBeforeWaiting, true, 0, &pre_wait_observer_cb, nullptr);
+		CFRunLoopAddObserver(CFRunLoopGetCurrent(), pre_wait_observer, kCFRunLoopCommonModes);
 
-	// Process application:openFile: event.
-	while (true) {
-		NSEvent *event = [NSApp
-				nextEventMatchingMask:NSEventMaskAny
+		// Process application:openFile: event.
+		while (true) {
+			NSEvent *event = [NSApp
+					nextEventMatchingMask:NSEventMaskAny
 							untilDate:[NSDate distantPast]
 							   inMode:NSDefaultRunLoopMode
 							  dequeue:YES];
 
-		if (event == nil) {
-			break;
+			if (event == nil) {
+				break;
+			}
+
+			[NSApp sendEvent:event];
 		}
 
-		[NSApp sendEvent:event];
+		[NSApp activateIgnoringOtherApps:YES];
+	} else {
+		pre_wait_observer = nullptr;
 	}
-
-	[NSApp activateIgnoringOtherApps:YES];
 }
 
 OS_MacOS::~OS_MacOS() {
-	CFRunLoopRemoveObserver(CFRunLoopGetCurrent(), pre_wait_observer, kCFRunLoopCommonModes);
-	CFRelease(pre_wait_observer);
+	if (pre_wait_observer) {
+		CFRunLoopRemoveObserver(CFRunLoopGetCurrent(), pre_wait_observer, kCFRunLoopCommonModes);
+		CFRelease(pre_wait_observer);
+		pre_wait_observer = nullptr;
+	}
 }

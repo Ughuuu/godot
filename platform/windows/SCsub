@@ -33,6 +33,8 @@ libgodot_files = [
     "libgodot_windows.cpp",
 ]
 
+host_interface = []
+
 if env.msvc:
     common_win += ["crash_handler_windows_seh.cpp"]
 else:

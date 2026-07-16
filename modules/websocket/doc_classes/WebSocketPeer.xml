@@ -154,6 +154,20 @@
 		</method>
 	</methods>
 	<members>
+		<member name="client_max_window_bits" type="int" setter="set_client_max_window_bits" getter="get_client_max_window_bits" default="15">
+			The maximum size of the compression window (as a power of two) used by the client-to-server direction when compression is negotiated, from [code]9[/code] ([code]512[/code] bytes) to [code]15[/code] ([code]32768[/code] bytes). Lower values reduce memory usage at the cost of a worse compression ratio. See [member compression_enabled].
+			[b]Note:[/b] RFC 7692 also allows a value of [code]8[/code], which is not supported due to a zlib limitation.
+			[b]Note:[/b] Has no effect in Web exports, where compression is negotiated by the browser.
+		</member>
+		<member name="client_no_context_takeover" type="bool" setter="set_client_no_context_takeover" getter="is_client_no_context_takeover" default="false">
+			If [code]true[/code], the client-to-server direction resets its compression context after every message when compression is negotiated. This lowers memory usage at the cost of a worse compression ratio for streams of similar messages. See [member compression_enabled].
+			[b]Note:[/b] Has no effect in Web exports, where compression is negotiated by the browser.
+		</member>
+		<member name="compression_enabled" type="bool" setter="set_compression_enabled" getter="is_compression_enabled" default="false">
+			If [code]true[/code], the peer will offer (as a client) or accept (as a server) per-message compression (the permessage-deflate WebSocket extension, RFC 7692) during the handshake. Compression is only used when the remote peer also supports it. When negotiation fails, the connection works normally without compression.
+			[b]Note:[/b] Must be set before the connection is established.
+			[b]Note:[/b] Has no effect in Web exports, where compression is negotiated by the browser.
+		</member>
 		<member name="handshake_headers" type="PackedStringArray" setter="set_handshake_headers" getter="get_handshake_headers" default="PackedStringArray()">
 			The extra HTTP headers to be sent during the WebSocket handshake.
 			[b]Note:[/b] Not supported in Web exports due to browser restrictions.
@@ -170,6 +184,15 @@
 		</member>
 		<member name="outbound_buffer_size" type="int" setter="set_outbound_buffer_size" getter="get_outbound_buffer_size" default="65535">
 			The size of the input buffer in bytes (roughly the maximum amount of memory that will be allocated for the outbound packets).
+		</member>
+		<member name="server_max_window_bits" type="int" setter="set_server_max_window_bits" getter="get_server_max_window_bits" default="15">
+			The maximum size of the compression window (as a power of two) used by the server-to-client direction when compression is negotiated, from [code]9[/code] ([code]512[/code] bytes) to [code]15[/code] ([code]32768[/code] bytes). Lower values reduce memory usage at the cost of a worse compression ratio. See [member compression_enabled].
+			[b]Note:[/b] RFC 7692 also allows a value of [code]8[/code], which is not supported due to a zlib limitation.
+			[b]Note:[/b] Has no effect in Web exports, where compression is negotiated by the browser.
+		</member>
+		<member name="server_no_context_takeover" type="bool" setter="set_server_no_context_takeover" getter="is_server_no_context_takeover" default="false">
+			If [code]true[/code], the server-to-client direction resets its compression context after every message when compression is negotiated. This lowers memory usage at the cost of a worse compression ratio for streams of similar messages. See [member compression_enabled].
+			[b]Note:[/b] Has no effect in Web exports, where compression is negotiated by the browser.
 		</member>
 		<member name="supported_protocols" type="PackedStringArray" setter="set_supported_protocols" getter="get_supported_protocols" default="PackedStringArray()">
 			The WebSocket sub-protocols allowed during the WebSocket handshake.

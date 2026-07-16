@@ -135,6 +135,21 @@ public:
 	void set_max_queued_packets(int p_max_queued_packets);
 	int get_max_queued_packets() const;
 
+	void set_compression_enabled(bool p_enabled);
+	bool is_compression_enabled() const;
+
+	void set_server_no_context_takeover(bool p_no_context_takeover);
+	bool is_server_no_context_takeover() const;
+
+	void set_client_no_context_takeover(bool p_no_context_takeover);
+	bool is_client_no_context_takeover() const;
+
+	void set_server_max_window_bits(int p_window_bits);
+	int get_server_max_window_bits() const;
+
+	void set_client_max_window_bits(int p_window_bits);
+	int get_client_max_window_bits() const;
+
 	WebSocketMultiplayerPeer();
 	~WebSocketMultiplayerPeer();
 };

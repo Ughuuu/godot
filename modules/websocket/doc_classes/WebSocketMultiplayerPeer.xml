@@ -51,6 +51,15 @@
 		</method>
 	</methods>
 	<members>
+		<member name="client_max_window_bits" type="int" setter="set_client_max_window_bits" getter="get_client_max_window_bits" default="15">
+			The maximum compression window size for the client-to-server direction. See [member WebSocketPeer.client_max_window_bits] for more details.
+		</member>
+		<member name="client_no_context_takeover" type="bool" setter="set_client_no_context_takeover" getter="is_client_no_context_takeover" default="false">
+			If [code]true[/code], the client-to-server direction resets its compression context after every message. See [member WebSocketPeer.client_no_context_takeover] for more details.
+		</member>
+		<member name="compression_enabled" type="bool" setter="set_compression_enabled" getter="is_compression_enabled" default="false">
+			If [code]true[/code], per-message compression is negotiated for connected peers. See [member WebSocketPeer.compression_enabled] for more details.
+		</member>
 		<member name="handshake_headers" type="PackedStringArray" setter="set_handshake_headers" getter="get_handshake_headers" default="PackedStringArray()">
 			The extra headers to use during handshake. See [member WebSocketPeer.handshake_headers] for more details.
 		</member>
@@ -65,6 +74,12 @@
 		</member>
 		<member name="outbound_buffer_size" type="int" setter="set_outbound_buffer_size" getter="get_outbound_buffer_size" default="65535">
 			The outbound buffer size for connected peers. See [member WebSocketPeer.outbound_buffer_size] for more details.
+		</member>
+		<member name="server_max_window_bits" type="int" setter="set_server_max_window_bits" getter="get_server_max_window_bits" default="15">
+			The maximum compression window size for the server-to-client direction. See [member WebSocketPeer.server_max_window_bits] for more details.
+		</member>
+		<member name="server_no_context_takeover" type="bool" setter="set_server_no_context_takeover" getter="is_server_no_context_takeover" default="false">
+			If [code]true[/code], the server-to-client direction resets its compression context after every message. See [member WebSocketPeer.server_no_context_takeover] for more details.
 		</member>
 		<member name="supported_protocols" type="PackedStringArray" setter="set_supported_protocols" getter="get_supported_protocols" default="PackedStringArray()">
 			The supported WebSocket sub-protocols. See [member WebSocketPeer.supported_protocols] for more details.

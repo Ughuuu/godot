@@ -53,6 +53,13 @@ public:
 		DEFAULT_BUFFER_SIZE = 65535,
 	};
 
+	enum {
+		// zlib cannot produce raw deflate streams with a window size of 8
+		// bits, so unlike RFC 7692 the minimum is 9.
+		MIN_WINDOW_BITS = 9,
+		MAX_WINDOW_BITS = 15,
+	};
+
 private:
 	virtual Error _send_bind(const PackedByteArray &p_data, WriteMode p_mode = WRITE_MODE_BINARY);
 
@@ -71,6 +78,13 @@ protected:
 	int inbound_buffer_size = DEFAULT_BUFFER_SIZE;
 	int max_queued_packets = 4096;
 	uint64_t heartbeat_interval_msec = 0;
+
+	// permessage-deflate (RFC 7692) configuration.
+	bool compression_enabled = false;
+	bool server_no_context_takeover = false;
+	bool client_no_context_takeover = false;
+	int server_max_window_bits = MAX_WINDOW_BITS;
+	int client_max_window_bits = MAX_WINDOW_BITS;
 
 public:
 	static WebSocketPeer *create(bool p_notify_postinitialize = true) {
@@ -118,6 +132,21 @@ public:
 
 	double get_heartbeat_interval() const;
 	void set_heartbeat_interval(double p_interval);
+
+	void set_compression_enabled(bool p_enabled);
+	bool is_compression_enabled() const;
+
+	void set_server_no_context_takeover(bool p_no_context_takeover);
+	bool is_server_no_context_takeover() const;
+
+	void set_client_no_context_takeover(bool p_no_context_takeover);
+	bool is_client_no_context_takeover() const;
+
+	void set_server_max_window_bits(int p_window_bits);
+	int get_server_max_window_bits() const;
+
+	void set_client_max_window_bits(int p_window_bits);
+	int get_client_max_window_bits() const;
 
 	WebSocketPeer();
 	~WebSocketPeer();

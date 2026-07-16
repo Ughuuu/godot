@@ -39,6 +39,7 @@
 #include "core/io/stream_peer_tcp.h"
 
 #include <wslay/wslay.h>
+#include <zlib.h>
 
 #define WSL_MAX_HEADER_SIZE 4096
 
@@ -81,10 +82,12 @@ private:
 	struct PendingMessage {
 		size_t payload_size = 0;
 		uint8_t opcode = 0;
+		bool compressed = false;
 
 		void clear() {
 			payload_size = 0;
 			opcode = 0;
+			compressed = false;
 		}
 	};
 
@@ -115,6 +118,20 @@ private:
 	bool use_tls = true;
 	Ref<TLSOptions> tls_options;
 
+	// permessage-deflate (RFC 7692) negotiated state.
+	bool compression_negotiated = false;
+	bool compression_error = false;
+	uint16_t compression_close_code = 0;
+	bool deflater_reset_between_messages = false;
+	int deflater_window_bits = MAX_WINDOW_BITS;
+	bool compression_contexts_initialized = false;
+	z_stream deflater = {};
+	// The inflater always uses the maximum window size, which can decompress
+	// streams produced with any negotiated window size.
+	z_stream inflater = {};
+	// Server: the extension response header value for the accepted offer.
+	String compression_response;
+
 	// Packet buffers.
 	Vector<uint8_t> packet_buffer;
 	// Our packet info is just a boolean (is_string), using uint8_t for it.
@@ -127,6 +144,14 @@ private:
 
 	void _do_client_handshake();
 	bool _verify_server_response();
+
+	String _make_compression_offer() const;
+	bool _negotiate_compression_offer(const String &p_extensions);
+	bool _validate_compression_response(const String &p_extensions);
+	void _init_compression_contexts();
+	void _clear_compression();
+	bool _deflate_message(const uint8_t *p_buffer, int p_buffer_size, Vector<uint8_t> &r_output);
+	bool _inflate_and_store(const uint8_t *p_data, size_t p_size);
 
 	void _clear();
 

@@ -75,6 +75,17 @@ void WebSocketPeer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_heartbeat_interval", "interval"), &WebSocketPeer::set_heartbeat_interval);
 	ClassDB::bind_method(D_METHOD("get_heartbeat_interval"), &WebSocketPeer::get_heartbeat_interval);
 
+	ClassDB::bind_method(D_METHOD("set_compression_enabled", "enabled"), &WebSocketPeer::set_compression_enabled);
+	ClassDB::bind_method(D_METHOD("is_compression_enabled"), &WebSocketPeer::is_compression_enabled);
+	ClassDB::bind_method(D_METHOD("set_server_no_context_takeover", "no_context_takeover"), &WebSocketPeer::set_server_no_context_takeover);
+	ClassDB::bind_method(D_METHOD("is_server_no_context_takeover"), &WebSocketPeer::is_server_no_context_takeover);
+	ClassDB::bind_method(D_METHOD("set_client_no_context_takeover", "no_context_takeover"), &WebSocketPeer::set_client_no_context_takeover);
+	ClassDB::bind_method(D_METHOD("is_client_no_context_takeover"), &WebSocketPeer::is_client_no_context_takeover);
+	ClassDB::bind_method(D_METHOD("set_server_max_window_bits", "window_bits"), &WebSocketPeer::set_server_max_window_bits);
+	ClassDB::bind_method(D_METHOD("get_server_max_window_bits"), &WebSocketPeer::get_server_max_window_bits);
+	ClassDB::bind_method(D_METHOD("set_client_max_window_bits", "window_bits"), &WebSocketPeer::set_client_max_window_bits);
+	ClassDB::bind_method(D_METHOD("get_client_max_window_bits"), &WebSocketPeer::get_client_max_window_bits);
+
 	ADD_PROPERTY(PropertyInfo(Variant::PACKED_STRING_ARRAY, "supported_protocols"), "set_supported_protocols", "get_supported_protocols");
 	ADD_PROPERTY(PropertyInfo(Variant::PACKED_STRING_ARRAY, "handshake_headers"), "set_handshake_headers", "get_handshake_headers");
 
@@ -84,6 +95,12 @@ void WebSocketPeer::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_queued_packets"), "set_max_queued_packets", "get_max_queued_packets");
 
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "heartbeat_interval"), "set_heartbeat_interval", "get_heartbeat_interval");
+
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "compression_enabled"), "set_compression_enabled", "is_compression_enabled");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "server_no_context_takeover"), "set_server_no_context_takeover", "is_server_no_context_takeover");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "client_no_context_takeover"), "set_client_no_context_takeover", "is_client_no_context_takeover");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "server_max_window_bits", PROPERTY_HINT_RANGE, "9,15,1"), "set_server_max_window_bits", "get_server_max_window_bits");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "client_max_window_bits", PROPERTY_HINT_RANGE, "9,15,1"), "set_client_max_window_bits", "get_client_max_window_bits");
 
 	BIND_ENUM_CONSTANT(WRITE_MODE_TEXT);
 	BIND_ENUM_CONSTANT(WRITE_MODE_BINARY);
@@ -166,4 +183,46 @@ double WebSocketPeer::get_heartbeat_interval() const {
 void WebSocketPeer::set_heartbeat_interval(double p_interval) {
 	ERR_FAIL_COND(p_interval < 0);
 	heartbeat_interval_msec = p_interval * 1000.0;
+}
+
+void WebSocketPeer::set_compression_enabled(bool p_enabled) {
+	compression_enabled = p_enabled;
+}
+
+bool WebSocketPeer::is_compression_enabled() const {
+	return compression_enabled;
+}
+
+void WebSocketPeer::set_server_no_context_takeover(bool p_no_context_takeover) {
+	server_no_context_takeover = p_no_context_takeover;
+}
+
+bool WebSocketPeer::is_server_no_context_takeover() const {
+	return server_no_context_takeover;
+}
+
+void WebSocketPeer::set_client_no_context_takeover(bool p_no_context_takeover) {
+	client_no_context_takeover = p_no_context_takeover;
+}
+
+bool WebSocketPeer::is_client_no_context_takeover() const {
+	return client_no_context_takeover;
+}
+
+void WebSocketPeer::set_server_max_window_bits(int p_window_bits) {
+	ERR_FAIL_COND(p_window_bits < MIN_WINDOW_BITS || p_window_bits > MAX_WINDOW_BITS);
+	server_max_window_bits = p_window_bits;
+}
+
+int WebSocketPeer::get_server_max_window_bits() const {
+	return server_max_window_bits;
+}
+
+void WebSocketPeer::set_client_max_window_bits(int p_window_bits) {
+	ERR_FAIL_COND(p_window_bits < MIN_WINDOW_BITS || p_window_bits > MAX_WINDOW_BITS);
+	client_max_window_bits = p_window_bits;
+}
+
+int WebSocketPeer::get_client_max_window_bits() const {
+	return client_max_window_bits;
 }

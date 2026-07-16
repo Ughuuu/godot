@@ -36,8 +36,244 @@
 #include "core/object/class_db.h"
 #include "core/os/os.h"
 
+#define WSL_COMPRESSION_CHUNK 4096
+
 void WSLPeer::initialize() {
 	WebSocketPeer::_create = WSLPeer::_create;
+}
+
+///
+/// permessage-deflate (RFC 7692) helpers.
+///
+String WSLPeer::_make_compression_offer() const {
+	String offer = "permessage-deflate";
+	// Always advertise "client_max_window_bits" so the server is allowed to
+	// pick a lower value for our compressor.
+	offer += "; client_max_window_bits";
+	if (client_max_window_bits != MAX_WINDOW_BITS) {
+		offer += "=" + itos(client_max_window_bits);
+	}
+	if (server_max_window_bits != MAX_WINDOW_BITS) {
+		offer += "; server_max_window_bits=" + itos(server_max_window_bits);
+	}
+	if (client_no_context_takeover) {
+		offer += "; client_no_context_takeover";
+	}
+	if (server_no_context_takeover) {
+		offer += "; server_no_context_takeover";
+	}
+	return offer;
+}
+
+static bool _parse_compression_param(const String &p_param, String &r_name, String &r_value) {
+	int eq = p_param.find_char('=');
+	if (eq < 0) {
+		r_name = p_param.strip_edges();
+		r_value = String();
+	} else {
+		r_name = p_param.substr(0, eq).strip_edges();
+		r_value = p_param.substr(eq + 1).strip_edges().trim_prefix("\"").trim_suffix("\"");
+	}
+	return !r_name.is_empty();
+}
+
+bool WSLPeer::_negotiate_compression_offer(const String &p_extensions) {
+	// A client can send multiple offers; accept the first suitable one.
+	Vector<String> offers = p_extensions.split(",");
+	for (const String &offer : offers) {
+		Vector<String> tokens = offer.split(";");
+		if (tokens[0].strip_edges() != "permessage-deflate") {
+			continue;
+		}
+		bool acceptable = true;
+		bool offer_server_no_context = false;
+		bool offer_client_no_context = false;
+		int offer_server_bits = MAX_WINDOW_BITS;
+		bool client_bits_offered = false;
+		int offer_client_bits = MAX_WINDOW_BITS;
+		for (int i = 1; i < tokens.size() && acceptable; i++) {
+			String pname;
+			String pvalue;
+			if (!_parse_compression_param(tokens[i], pname, pvalue)) {
+				acceptable = false;
+			} else if (pname == "server_no_context_takeover" && pvalue.is_empty()) {
+				offer_server_no_context = true;
+			} else if (pname == "client_no_context_takeover" && pvalue.is_empty()) {
+				offer_client_no_context = true;
+			} else if (pname == "server_max_window_bits" && pvalue.is_valid_int()) {
+				offer_server_bits = pvalue.to_int();
+				// We cannot compress with a window below MIN_WINDOW_BITS.
+				acceptable = offer_server_bits >= MIN_WINDOW_BITS && offer_server_bits <= MAX_WINDOW_BITS;
+			} else if (pname == "client_max_window_bits") {
+				// Bare or valued. Caps the client's compressor; our decompressor
+				// always uses the maximum window, so any valid value is fine.
+				client_bits_offered = true;
+				if (!pvalue.is_empty()) {
+					acceptable = pvalue.is_valid_int();
+					if (acceptable) {
+						offer_client_bits = pvalue.to_int();
+						acceptable = offer_client_bits >= 8 && offer_client_bits <= MAX_WINDOW_BITS;
+					}
+				}
+			} else {
+				// Unknown or invalid parameter, decline this offer (RFC 7692 section 7).
+				acceptable = false;
+			}
+		}
+		if (!acceptable) {
+			continue;
+		}
+
+		deflater_reset_between_messages = server_no_context_takeover || offer_server_no_context;
+		deflater_window_bits = MIN(server_max_window_bits, offer_server_bits);
+		compression_response = "permessage-deflate";
+		if (deflater_reset_between_messages) {
+			compression_response += "; server_no_context_takeover";
+		}
+		if (client_no_context_takeover || offer_client_no_context) {
+			compression_response += "; client_no_context_takeover";
+		}
+		if (deflater_window_bits != MAX_WINDOW_BITS) {
+			compression_response += "; server_max_window_bits=" + itos(deflater_window_bits);
+		}
+		// Only allowed in the response when the client offered the parameter.
+		if (client_bits_offered && client_max_window_bits < offer_client_bits) {
+			compression_response += "; client_max_window_bits=" + itos(client_max_window_bits);
+		}
+		compression_negotiated = true;
+		return true;
+	}
+	return false;
+}
+
+bool WSLPeer::_validate_compression_response(const String &p_extensions) {
+	Vector<String> extensions = p_extensions.split(",");
+	ERR_FAIL_COND_V_MSG(extensions.size() != 1, false, "Server accepted more than one WebSocket extension -> " + p_extensions);
+	Vector<String> tokens = extensions[0].split(";");
+	ERR_FAIL_COND_V_MSG(tokens[0].strip_edges() != "permessage-deflate", false, "Server accepted an unrequested WebSocket extension -> " + p_extensions);
+
+	bool reset_between_messages = client_no_context_takeover;
+	int window_bits = client_max_window_bits;
+	for (int i = 1; i < tokens.size(); i++) {
+		String pname;
+		String pvalue;
+		bool valid = _parse_compression_param(tokens[i], pname, pvalue);
+		if (valid && pname == "server_no_context_takeover" && pvalue.is_empty()) {
+			// The server will reset its compression context, nothing to do.
+		} else if (valid && pname == "client_no_context_takeover" && pvalue.is_empty()) {
+			reset_between_messages = true;
+		} else if (valid && pname == "server_max_window_bits" && pvalue.is_valid_int()) {
+			int bits = pvalue.to_int();
+			// The server may only lower what we offered. Our decompressor always
+			// uses the maximum window, so no further action is needed.
+			ERR_FAIL_COND_V_MSG(bits < 8 || bits > server_max_window_bits, false, "Invalid \"server_max_window_bits\" in server response -> " + p_extensions);
+		} else if (valid && pname == "client_max_window_bits" && pvalue.is_valid_int()) {
+			int bits = pvalue.to_int();
+			// zlib cannot compress with a window below MIN_WINDOW_BITS.
+			ERR_FAIL_COND_V_MSG(bits < MIN_WINDOW_BITS || bits > client_max_window_bits, false, "Invalid \"client_max_window_bits\" in server response -> " + p_extensions);
+			window_bits = bits;
+		} else {
+			ERR_FAIL_V_MSG(false, "Invalid parameter in \"permessage-deflate\" server response -> " + p_extensions);
+		}
+	}
+	deflater_reset_between_messages = reset_between_messages;
+	deflater_window_bits = window_bits;
+	compression_negotiated = true;
+	return true;
+}
+
+void WSLPeer::_init_compression_contexts() {
+	memset(&deflater, 0, sizeof(z_stream));
+	memset(&inflater, 0, sizeof(z_stream));
+	if (deflateInit2(&deflater, Z_DEFAULT_COMPRESSION, Z_DEFLATED, -deflater_window_bits, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
+		compression_error = true;
+		return;
+	}
+	if (inflateInit2(&inflater, -MAX_WINDOW_BITS) != Z_OK) {
+		deflateEnd(&deflater);
+		compression_error = true;
+		return;
+	}
+	compression_contexts_initialized = true;
+}
+
+void WSLPeer::_clear_compression() {
+	if (compression_contexts_initialized) {
+		deflateEnd(&deflater);
+		inflateEnd(&inflater);
+		compression_contexts_initialized = false;
+	}
+	compression_negotiated = false;
+	compression_error = false;
+	compression_close_code = 0;
+	deflater_reset_between_messages = false;
+	deflater_window_bits = MAX_WINDOW_BITS;
+	compression_response.clear();
+}
+
+bool WSLPeer::_deflate_message(const uint8_t *p_buffer, int p_buffer_size, Vector<uint8_t> &r_output) {
+	if (deflater_reset_between_messages) {
+		deflateReset(&deflater);
+	}
+	deflater.next_in = (Bytef *)p_buffer;
+	deflater.avail_in = p_buffer_size;
+	do {
+		int pos = r_output.size();
+		r_output.resize(pos + WSL_COMPRESSION_CHUNK);
+		deflater.next_out = (Bytef *)r_output.ptrw() + pos;
+		deflater.avail_out = WSL_COMPRESSION_CHUNK;
+		int err = deflate(&deflater, Z_SYNC_FLUSH);
+		if (err == Z_BUF_ERROR) {
+			break; // No more output pending.
+		} else if (err != Z_OK) {
+			return false;
+		}
+	} while (deflater.avail_out == 0);
+	r_output.resize(r_output.size() - deflater.avail_out);
+	if (r_output.is_empty()) {
+		// zlib makes no progress when sync flushing an empty message right
+		// after another flush. Use an empty uncompressed block instead, see
+		// RFC 7692 section 7.2.3.6.
+		r_output.push_back(0x00);
+		return true;
+	}
+	// A sync flush always ends with an empty block (0x00 0x00 0xFF 0xFF),
+	// which RFC 7692 requires the sender to strip.
+	if (r_output.size() < 4) {
+		return false;
+	}
+	r_output.resize(r_output.size() - 4);
+	return true;
+}
+
+bool WSLPeer::_inflate_and_store(const uint8_t *p_data, size_t p_size) {
+	if (compression_error) {
+		return false;
+	}
+	inflater.next_in = (Bytef *)p_data;
+	inflater.avail_in = p_size;
+	uint8_t chunk[WSL_COMPRESSION_CHUNK];
+	do {
+		inflater.next_out = chunk;
+		inflater.avail_out = WSL_COMPRESSION_CHUNK;
+		int err = inflate(&inflater, Z_SYNC_FLUSH);
+		if (err != Z_OK && err != Z_BUF_ERROR) {
+			print_verbose("WebSocket failed to decompress an incoming message, closing.");
+			compression_close_code = WSLAY_CODE_INVALID_FRAME_PAYLOAD_DATA;
+			return false;
+		}
+		size_t produced = WSL_COMPRESSION_CHUNK - inflater.avail_out;
+		if (produced > 0) {
+			if ((size_t)in_buffer.payload_space_left() < produced) {
+				print_verbose("WebSocket decompressed message too big for inbound buffer, closing.");
+				compression_close_code = WSLAY_CODE_MESSAGE_TOO_BIG;
+				return false;
+			}
+			in_buffer.write_packet(chunk, produced, nullptr);
+			pending_message.payload_size += produced;
+		}
+	} while (inflater.avail_out == 0);
+	return true;
 }
 
 WebSocketPeer *WSLPeer::_create(bool p_notify_postinitialize) {
@@ -205,6 +441,10 @@ bool WSLPeer::_parse_client_request() {
 	} else if (supported_protocols.size() > 0) { // No protocol requested, but we need one
 		return false;
 	}
+	if (compression_enabled && headers.has("sec-websocket-extensions")) {
+		// Not accepting any offer is valid, the connection is simply uncompressed.
+		_negotiate_compression_offer(headers["sec-websocket-extensions"]);
+	}
 	return true;
 }
 
@@ -255,6 +495,9 @@ Error WSLPeer::_do_server_handshake() {
 				if (!selected_protocol.is_empty()) {
 					s += "Sec-WebSocket-Protocol: " + selected_protocol + "\r\n";
 				}
+				if (compression_negotiated) {
+					s += "Sec-WebSocket-Extensions: " + compression_response + "\r\n";
+				}
 				for (int i = 0; i < handshake_headers.size(); i++) {
 					s += handshake_headers[i] + "\r\n";
 				}
@@ -292,6 +535,10 @@ Error WSLPeer::_do_server_handshake() {
 			wslay_event_context_server_init(&wsl_ctx, &_wsl_callbacks, this);
 			wslay_event_config_set_no_buffering(wsl_ctx, 1);
 			wslay_event_config_set_max_recv_msg_length(wsl_ctx, inbound_buffer_size);
+			if (compression_negotiated) {
+				wslay_event_config_set_allowed_rsv_bits(wsl_ctx, WSLAY_RSV1_BIT);
+				_init_compression_contexts();
+			}
 			in_buffer.resize(Math::nearest_shift((uint32_t)inbound_buffer_size), max_queued_packets);
 			packet_buffer.resize(inbound_buffer_size);
 			ready_state = STATE_OPEN;
@@ -401,6 +648,10 @@ void WSLPeer::_do_client_handshake() {
 				wslay_event_context_client_init(&wsl_ctx, &_wsl_callbacks, this);
 				wslay_event_config_set_no_buffering(wsl_ctx, 1);
 				wslay_event_config_set_max_recv_msg_length(wsl_ctx, inbound_buffer_size);
+				if (compression_negotiated) {
+					wslay_event_config_set_allowed_rsv_bits(wsl_ctx, WSLAY_RSV1_BIT);
+					_init_compression_contexts();
+				}
 				in_buffer.resize(Math::nearest_shift((uint32_t)inbound_buffer_size), max_queued_packets);
 				packet_buffer.resize(inbound_buffer_size);
 				ready_state = STATE_OPEN;
@@ -464,6 +715,13 @@ bool WSLPeer::_verify_server_response() {
 		}
 		if (!valid) {
 			ERR_FAIL_V_MSG(false, "Received unrequested sub-protocol -> " + selected_protocol);
+		}
+	}
+	if (headers.has("sec-websocket-extensions")) {
+		String extensions = headers["sec-websocket-extensions"];
+		ERR_FAIL_COND_V_MSG(!compression_enabled, false, "Received unrequested extension(s) -> " + extensions);
+		if (!_validate_compression_response(extensions)) {
+			return false;
 		}
 	}
 	return true;
@@ -543,6 +801,9 @@ Error WSLPeer::connect_to_url(const String &p_url, const Ref<TLSOptions> &p_opti
 		}
 		request += "\r\n";
 	}
+	if (compression_enabled) {
+		request += "Sec-WebSocket-Extensions: " + _make_compression_offer() + "\r\n";
+	}
 	for (int i = 0; i < handshake_headers.size(); i++) {
 		request += handshake_headers[i] + "\r\n";
 	}
@@ -593,6 +854,9 @@ void WSLPeer::_wsl_recv_start_callback(wslay_event_context_ptr ctx, const struct
 		// Get ready to process a data package.
 		PendingMessage &pm = peer->pending_message;
 		pm.opcode = op;
+		// RSV1 marks a compressed message, and is only allowed on the first
+		// frame, continuation frames inherit it (RFC 7692 section 6).
+		pm.compressed = peer->compression_negotiated && wslay_get_rsv1(arg->rsv);
 	}
 }
 
@@ -600,9 +864,17 @@ void WSLPeer::_wsl_frame_recv_chunk_callback(wslay_event_context_ptr ctx, const 
 	WSLPeer *peer = (WSLPeer *)user_data;
 	PendingMessage &pm = peer->pending_message;
 	if (pm.opcode != 0) {
-		// Only write the payload.
-		peer->in_buffer.write_packet(arg->data, arg->data_length, nullptr);
-		pm.payload_size += arg->data_length;
+		if (pm.compressed) {
+			// Streaming decompression, writes the inflated payload and updates
+			// the payload size.
+			if (!peer->_inflate_and_store(arg->data, arg->data_length)) {
+				peer->compression_error = true;
+			}
+		} else {
+			// Only write the payload.
+			peer->in_buffer.write_packet(arg->data, arg->data_length, nullptr);
+			pm.payload_size += arg->data_length;
+		}
 	}
 }
 
@@ -655,6 +927,16 @@ void WSLPeer::_wsl_msg_recv_callback(wslay_event_context_ptr ctx, const struct w
 	} else if (op == WSLAY_TEXT_FRAME || op == WSLAY_BINARY_FRAME) {
 		PendingMessage &pm = peer->pending_message;
 		ERR_FAIL_COND(pm.opcode != op);
+		if (pm.compressed) {
+			// Append the empty block the sender stripped, finishing the
+			// decompression of this message (RFC 7692 section 7.2.2).
+			const uint8_t tail[4] = { 0x00, 0x00, 0xFF, 0xFF };
+			if (!peer->_inflate_and_store(tail, 4)) {
+				peer->compression_error = true;
+				pm.clear();
+				return;
+			}
+		}
 		// Only write the packet (since it's now completed).
 		uint8_t is_string = pm.opcode == WSLAY_TEXT_FRAME ? 1 : 0;
 		peer->in_buffer.write_packet(nullptr, pm.payload_size, &is_string);
@@ -737,6 +1019,13 @@ void WSLPeer::poll() {
 			close(-1);
 			return;
 		}
+		if (compression_error && ready_state == STATE_OPEN) {
+			// Decompression failed or exceeded the inbound buffer, close with
+			// the appropriate status code (the incoming stream can no longer
+			// be processed either way).
+			close(compression_close_code ? compression_close_code : WSLAY_CODE_PROTOCOL_ERROR);
+			return;
+		}
 		if (wslay_event_get_close_sent(wsl_ctx)) {
 			if (wslay_event_get_close_received(wsl_ctx)) {
 				// Clean close.
@@ -775,15 +1064,27 @@ void WSLPeer::poll() {
 Error WSLPeer::_send(const uint8_t *p_buffer, int p_buffer_size, wslay_opcode p_opcode) {
 	ERR_FAIL_COND_V(ready_state != STATE_OPEN, FAILED);
 	ERR_FAIL_COND_V(wslay_event_get_queued_msg_count(wsl_ctx) >= (uint32_t)max_queued_packets, ERR_OUT_OF_MEMORY);
-	ERR_FAIL_COND_V(outbound_buffer_size > 0 && (wslay_event_get_queued_msg_length(wsl_ctx) + p_buffer_size > (uint32_t)outbound_buffer_size), ERR_OUT_OF_MEMORY);
 
 	struct wslay_event_msg msg;
 	msg.opcode = p_opcode;
 	msg.msg = p_buffer;
 	msg.msg_length = p_buffer_size;
 
+	uint8_t rsv = WSLAY_RSV_NONE;
+	Vector<uint8_t> compressed;
+	if (compression_negotiated) {
+		if (!_deflate_message(p_buffer, p_buffer_size, compressed)) {
+			close(-1);
+			return FAILED;
+		}
+		msg.msg = compressed.ptr();
+		msg.msg_length = compressed.size();
+		rsv = WSLAY_RSV1_BIT;
+	}
+	ERR_FAIL_COND_V(outbound_buffer_size > 0 && (wslay_event_get_queued_msg_length(wsl_ctx) + msg.msg_length > (uint32_t)outbound_buffer_size), ERR_OUT_OF_MEMORY);
+
 	// Queue & send message.
-	if (wslay_event_queue_msg(wsl_ctx, &msg) != 0 || wslay_event_send(wsl_ctx) != 0) {
+	if (wslay_event_queue_msg_ex(wsl_ctx, &msg, rsv) != 0 || wslay_event_send(wsl_ctx) != 0) {
 		close(-1);
 		return FAILED;
 	}
@@ -859,6 +1160,7 @@ void WSLPeer::close(int p_code, const String &p_reason) {
 		in_buffer.clear();
 		packet_buffer.resize(0);
 		pending_message.clear();
+		_clear_compression();
 	}
 }
 
@@ -911,6 +1213,8 @@ void WSLPeer::_clear() {
 	was_string = 0;
 	in_buffer.clear();
 	packet_buffer.clear();
+	pending_message.clear();
+	_clear_compression();
 
 	// Close code info.
 	close_code = -1;

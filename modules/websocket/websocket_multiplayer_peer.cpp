@@ -49,6 +49,11 @@ Ref<WebSocketPeer> WebSocketMultiplayerPeer::_create_peer() {
 	peer->set_inbound_buffer_size(get_inbound_buffer_size());
 	peer->set_outbound_buffer_size(get_outbound_buffer_size());
 	peer->set_max_queued_packets(get_max_queued_packets());
+	peer->set_compression_enabled(is_compression_enabled());
+	peer->set_server_no_context_takeover(is_server_no_context_takeover());
+	peer->set_client_no_context_takeover(is_client_no_context_takeover());
+	peer->set_server_max_window_bits(get_server_max_window_bits());
+	peer->set_client_max_window_bits(get_client_max_window_bits());
 	return peer;
 }
 
@@ -98,6 +103,17 @@ void WebSocketMultiplayerPeer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_max_queued_packets", "max_queued_packets"), &WebSocketMultiplayerPeer::set_max_queued_packets);
 	ClassDB::bind_method(D_METHOD("get_max_queued_packets"), &WebSocketMultiplayerPeer::get_max_queued_packets);
 
+	ClassDB::bind_method(D_METHOD("set_compression_enabled", "enabled"), &WebSocketMultiplayerPeer::set_compression_enabled);
+	ClassDB::bind_method(D_METHOD("is_compression_enabled"), &WebSocketMultiplayerPeer::is_compression_enabled);
+	ClassDB::bind_method(D_METHOD("set_server_no_context_takeover", "no_context_takeover"), &WebSocketMultiplayerPeer::set_server_no_context_takeover);
+	ClassDB::bind_method(D_METHOD("is_server_no_context_takeover"), &WebSocketMultiplayerPeer::is_server_no_context_takeover);
+	ClassDB::bind_method(D_METHOD("set_client_no_context_takeover", "no_context_takeover"), &WebSocketMultiplayerPeer::set_client_no_context_takeover);
+	ClassDB::bind_method(D_METHOD("is_client_no_context_takeover"), &WebSocketMultiplayerPeer::is_client_no_context_takeover);
+	ClassDB::bind_method(D_METHOD("set_server_max_window_bits", "window_bits"), &WebSocketMultiplayerPeer::set_server_max_window_bits);
+	ClassDB::bind_method(D_METHOD("get_server_max_window_bits"), &WebSocketMultiplayerPeer::get_server_max_window_bits);
+	ClassDB::bind_method(D_METHOD("set_client_max_window_bits", "window_bits"), &WebSocketMultiplayerPeer::set_client_max_window_bits);
+	ClassDB::bind_method(D_METHOD("get_client_max_window_bits"), &WebSocketMultiplayerPeer::get_client_max_window_bits);
+
 	ADD_PROPERTY(PropertyInfo(Variant::PACKED_STRING_ARRAY, "supported_protocols"), "set_supported_protocols", "get_supported_protocols");
 	ADD_PROPERTY(PropertyInfo(Variant::PACKED_STRING_ARRAY, "handshake_headers"), "set_handshake_headers", "get_handshake_headers");
 
@@ -107,6 +123,12 @@ void WebSocketMultiplayerPeer::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "handshake_timeout"), "set_handshake_timeout", "get_handshake_timeout");
 
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_queued_packets"), "set_max_queued_packets", "get_max_queued_packets");
+
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "compression_enabled"), "set_compression_enabled", "is_compression_enabled");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "server_no_context_takeover"), "set_server_no_context_takeover", "is_server_no_context_takeover");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "client_no_context_takeover"), "set_client_no_context_takeover", "is_client_no_context_takeover");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "server_max_window_bits", PROPERTY_HINT_RANGE, "9,15,1"), "set_server_max_window_bits", "get_server_max_window_bits");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "client_max_window_bits", PROPERTY_HINT_RANGE, "9,15,1"), "set_client_max_window_bits", "get_client_max_window_bits");
 }
 
 //
@@ -459,6 +481,46 @@ void WebSocketMultiplayerPeer::set_max_queued_packets(int p_max_queued_packets) 
 
 int WebSocketMultiplayerPeer::get_max_queued_packets() const {
 	return peer_config->get_max_queued_packets();
+}
+
+void WebSocketMultiplayerPeer::set_compression_enabled(bool p_enabled) {
+	peer_config->set_compression_enabled(p_enabled);
+}
+
+bool WebSocketMultiplayerPeer::is_compression_enabled() const {
+	return peer_config->is_compression_enabled();
+}
+
+void WebSocketMultiplayerPeer::set_server_no_context_takeover(bool p_no_context_takeover) {
+	peer_config->set_server_no_context_takeover(p_no_context_takeover);
+}
+
+bool WebSocketMultiplayerPeer::is_server_no_context_takeover() const {
+	return peer_config->is_server_no_context_takeover();
+}
+
+void WebSocketMultiplayerPeer::set_client_no_context_takeover(bool p_no_context_takeover) {
+	peer_config->set_client_no_context_takeover(p_no_context_takeover);
+}
+
+bool WebSocketMultiplayerPeer::is_client_no_context_takeover() const {
+	return peer_config->is_client_no_context_takeover();
+}
+
+void WebSocketMultiplayerPeer::set_server_max_window_bits(int p_window_bits) {
+	peer_config->set_server_max_window_bits(p_window_bits);
+}
+
+int WebSocketMultiplayerPeer::get_server_max_window_bits() const {
+	return peer_config->get_server_max_window_bits();
+}
+
+void WebSocketMultiplayerPeer::set_client_max_window_bits(int p_window_bits) {
+	peer_config->set_client_max_window_bits(p_window_bits);
+}
+
+int WebSocketMultiplayerPeer::get_client_max_window_bits() const {
+	return peer_config->get_client_max_window_bits();
 }
 
 float WebSocketMultiplayerPeer::get_handshake_timeout() const {
